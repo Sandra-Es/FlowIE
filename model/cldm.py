@@ -489,21 +489,25 @@ class Reflow_ControlLDM(LatentDiffusion):
         return c_latent
     
     @torch.no_grad()
-    def get_input(self, batch, k, bs=None, *args, **kwargs):
+    def get_input(self, batch, k, bs=None, *args, **kwargs):    #TODO IMP: Coarse Image is obtained here
  
-        x, c  = super().get_input(batch, self.first_stage_key,*args, **kwargs)
+        #TODO Doubt: What does this do? And what is c?
+        x, c  = super().get_input(batch, self.first_stage_key,*args, **kwargs)  
 
-        control = batch[self.control_key]
+        control = batch[self.control_key]   #Low-Quality (LQ) image
         if bs is not None:
             control = control[:bs]
         control = control.to(self.device)
         control = einops.rearrange(control, 'b h w c -> b c h w')
         control = control.to(memory_format=torch.contiguous_format).float()
         lq = control
+
+        #TODO Doubt: Why two models to get the coarse image?
         # apply preprocess model
-        control = self.preprocess_model(control)
+        control = self.preprocess_model(control)            #Passes LQ image through tau model (SwinIR)
         # apply condition encoder
-        c_latent = self.apply_condition_encoder(control)
+        c_latent = self.apply_condition_encoder(control)    #Processed Coarse Image
+
         return x, dict(c_crossattn=[c], c_latent=[c_latent], lq=[lq], c_concat=[control])
 
     def apply_model(self, x_noisy, t, cond, *args, **kwargs):
@@ -579,12 +583,12 @@ class Reflow_ControlLDM(LatentDiffusion):
         
         return zT+v
 
-    def configure_optimizers(self):
+    def configure_optimizers(self):     #TODO IMP: Optimizer
         
         
         lr = self.learning_rate
         params =   list(self.control_model.parameters())
-        
+
         opt = torch.optim.AdamW(itertools.chain(self.unet_lora_params,params), lr=lr)
         #opt = torch.optim.AdamW(params, lr=lr)
         return opt
@@ -629,6 +633,14 @@ class Reflow_ControlLDM(LatentDiffusion):
     def training_step(self, batch, batch_idx):
        
         z0,cond = self.get_input(batch,self.first_stage_key)
+
+        ###TODO Added
+        edge_input = cond["c_concat"]
+        edge_out = self.edge_model(edge_input)
+        cond["c_concat"] = torch.cat((cond["c_concat"], edge_out))
+
+        ###
+
         zT = torch.randn_like(z0,device=self.device)
         B = z0.shape[0]
         
