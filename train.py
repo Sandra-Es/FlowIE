@@ -31,7 +31,9 @@ def main() -> None:
         
         
         #load_state_dict(model.preprocess_model, torch.load('/home/user001/zwl/data/flowir_work_dirs/swin_derain0/lightning_logs/version_6/checkpoints/step=69999.ckpt', map_location="cpu"), strict=True)
+
     
+
     callbacks = []
     for callback_config in config.lightning.callbacks:
         callbacks.append(instantiate_from_config(callback_config))
