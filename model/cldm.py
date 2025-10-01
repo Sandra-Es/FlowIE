@@ -318,6 +318,56 @@ class ControlLDM(LatentDiffusion):
         # instantiate preprocess module (SwinIR)
         self.preprocess_model = instantiate_from_config(preprocess_config)
         frozen_module(self.preprocess_model)
+
+        ###TODO Added
+        #Modification
+        # the 1 X 1 cnn that resizes the channels
+        #set this as false if you want  to remove the modification
+        self.use_edge_fusion = True #you can turn it on and off without editing  the code
+        self.edge_fusion = nn.Conv2d(4,3, kernel_size=1, bias=True) #the added 
+        #convolution that remixes the channel back into the right dimensions
+
+        with torch.no_grad():
+          self.edge_fusion.weight.zero_() #we initialise it as zero, before training we want to have an identity mapping. this way there  will be no rAndom mapping
+          self.edge_fusion.bias.zero_()
+          # make first 3 input channels (coarse RGB) copy to outputs
+          # weight shape: [3_out, 4_in, 1, 1]
+          for c in range(3):
+            self.edge_fusion.weight[c,c,0,0] = 1.0
+          
+        #Because everything downstream expects a 3-channel control imag before 
+        #encoding to the 4-ch latent. We keep that contract intact and only
+        #change how the 3-ch control is formed.
+
+        def _sobel_edges(self, x_rgb_01: torch.Tensor) -> torch.Tensor:
+            """
+            x_rgb_01: [B,3,H,W] in [0,1]
+            returns:  [B,1,H,W] edges ~ [0,1]
+            """
+            # luminance
+            r, g, b = x_rgb_01[:,0:1], x_rgb_01[:,1:2], x_rgb_01[:,2:3]
+            gray = 0.2989*r + 0.5870*g + 0.1140*b
+
+            # Sobel kernels
+            kx = torch.tensor([[1,0,-1],[2,0,-2],[1,0,-1]], dtype=x_rgb_01.dtype, device=x_rgb_01.device).view(1,1,3,3)
+            ky = torch.tensor([[1,2, 1],[0,0, 0],[-1,-2,-1]], dtype=x_rgb_01.dtype, device=x_rgb_01.device).view(1,1,3,3)
+
+            gx = torch.nn.functional.conv2d(gray, kx, padding=1)
+            gy = torch.nn.functional.conv2d(gray, ky, padding=1)
+            mag = torch.sqrt(gx*gx + gy*gy)  # [B,1,H,W]
+            # normalize to [0,1] (avoid div-by-0)
+            mag = mag / (mag.amax(dim=(1,2,3), keepdim=True) + 1e-6)
+            return mag
+
+        def _fuse_control_with_edges(self, coarse_rgb_01: torch.Tensor) -> torch.Tensor:
+          edges_1 = self._sobel_edges(coarse_rgb_01)                  # [B,1,H,W]
+          fused = self.edge_fusion(torch.cat([coarse_rgb_01, edges_1], dim=1))  # [B,4,H,W] -> [B,3,H,W]
+
+          return fused.clamp_(0, 1) #used in  line 402
+
+
+        #modification end
+        ###
         
         # instantiate condition encoder, since our condition encoder has the same 
         # structure with AE encoder, we just make a copy of AE encoder. please
@@ -345,7 +395,14 @@ class ControlLDM(LatentDiffusion):
         control = control.to(memory_format=torch.contiguous_format).float()
         lq = control
         # apply preprocess model
+        # 1) Coarse via Swin IR 
         control = self.preprocess_model(control)
+
+      # 2) NEW: fuse with edges (keeps [B,3,H,W])
+        #if getattr(self, "use_edge_fusion", False):
+        if self.use_edge_fusion:
+          control = self._fuse_control_with_edges(control) #defined in line 363
+
         # apply condition encoder
         c_latent = self.apply_condition_encoder(control)
         return x, dict(c_crossattn=[c], c_latent=[c_latent], lq=[lq], c_concat=[control])
@@ -468,6 +525,39 @@ class Reflow_ControlLDM(LatentDiffusion):
         # instantiate preprocess module (SwinIR)
         self.preprocess_model = instantiate_from_config(preprocess_config)
         frozen_module(self.preprocess_model)
+
+        ###TODO ADDED
+        #modification
+        self.control_model.requires_grad_(False)
+        #end modification
+        
+        #Modification
+        # the 1 X 1 cnn that resizes the channels
+        #set this as false if you want  to remove the modification
+        self.use_edge_fusion = True #you can turn it on and off without editing  the code
+        self.edge_fusion = nn.Conv2d(4,3, kernel_size=1, bias=True) #the added 
+        #convolution that remixes the channel back into the right dimensions
+
+        with torch.no_grad():
+          self.edge_fusion.weight.zero_() #we initialise it as zero, before training we want to have an identity mapping. this way there  will be no rAndom mapping
+          self.edge_fusion.bias.zero_()
+          # make first 3 input channels (coarse RGB) copy to outputs
+          # weight shape: [3_out, 4_in, 1, 1]
+          for c in range(3):
+            self.edge_fusion.weight[c,c,0,0] = 1.0
+          
+        #Because everything downstream expects a 3-channel control imag before 
+        #encoding to the 4-ch latent. We keep that contract intact and only
+        #change how the 3-ch control is formed.
+        self.edge_encoder = nn.Sequential(
+                                nn.Conv2d(1, 32, kernel_size=3, stride=2, padding=1),   # [B, 1, 256, 256] → [B, 32, 128, 128]
+                                nn.ReLU(),
+                                nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),  # → [B, 64, 64, 64]
+                                nn.ReLU(),
+                                nn.Conv2d(64, 4, kernel_size=3, stride=2, padding=1),   # → [B, 4, 32, 32] = same shape as latent
+                            ) 
+        #end modification
+        ###
         
         # instantiate condition encoder, since our condition encoder has the same 
         # structure with AE encoder, we just make a copy of AE encoder. please
@@ -479,8 +569,10 @@ class Reflow_ControlLDM(LatentDiffusion):
         
         frozen_module(self.cond_encoder)
         self.model.diffusion_model.requires_grad_(False)
+
+        #TODO : Activate or deactive modification
         self.unet_lora_params, self.train_names = inject_trainable_lora(self.model.diffusion_model,r=lora_rank)
-        print(self.train_names)
+        print("\nTrain Names: \n", self.train_names)
         
 
     def apply_condition_encoder(self, control):
@@ -489,11 +581,45 @@ class Reflow_ControlLDM(LatentDiffusion):
         c_latent = c_latent * self.scale_factor
         return c_latent
     
-    @torch.no_grad()
+    ###TODO ADDED
+    #modification 
+
+    def _sobel_edges(self, x_rgb_01: torch.Tensor) -> torch.Tensor:
+        """
+        x_rgb_01: [B,3,H,W] in [0,1]
+        returns:  [B,1,H,W] edges ~ [0,1]
+        """
+        # luminance
+        r, g, b = x_rgb_01[:,0:1], x_rgb_01[:,1:2], x_rgb_01[:,2:3]
+        gray = 0.2989*r + 0.5870*g + 0.1140*b
+
+        # Sobel kernels
+        kx = torch.tensor([[1,0,-1],[2,0,-2],[1,0,-1]], dtype=x_rgb_01.dtype, device=x_rgb_01.device).view(1,1,3,3)
+        ky = torch.tensor([[1,2, 1],[0,0, 0],[-1,-2,-1]], dtype=x_rgb_01.dtype, device=x_rgb_01.device).view(1,1,3,3)
+
+        gx = torch.nn.functional.conv2d(gray, kx, padding=1)
+        gy = torch.nn.functional.conv2d(gray, ky, padding=1)
+        mag = torch.sqrt(gx*gx + gy*gy)  # [B,1,H,W]
+        # normalize to [0,1] (avoid div-by-0)
+        mag = mag / (mag.amax(dim=(1,2,3), keepdim=True) + 1e-6)
+        return mag
+
+    def _fuse_control_with_edges(self, coarse_rgb_01: torch.Tensor) -> torch.Tensor:
+      edges_1 = self._sobel_edges(coarse_rgb_01)                  # [B,1,H,W]
+      fused = self.edge_fusion(torch.cat([coarse_rgb_01, edges_1], dim=1))  # [B,4,H,W] -> [B,3,H,W]
+     
+      return fused.clamp_(0, 1) #used in  line 628
+ 
+    #end modification 
+    ###
+
+
+    # @torch.no_grad()      #TODO COMMENTED
     def get_input(self, batch, k, bs=None, *args, **kwargs):    #TODO IMP: Coarse Image is obtained here
  
         #TODO Doubt: What does this do? And what is c?
-        x, c  = super().get_input(batch, self.first_stage_key,*args, **kwargs)  
+        with torch.no_grad():                                                       #TODO ADDED : torch no grad
+            x, c  = super().get_input(batch, self.first_stage_key,*args, **kwargs)  
 
         control = batch[self.control_key]   #Low-Quality (LQ) image
         if bs is not None:
@@ -503,9 +629,18 @@ class Reflow_ControlLDM(LatentDiffusion):
         control = control.to(memory_format=torch.contiguous_format).float()
         lq = control
 
-        #TODO Doubt: Why two models to get the coarse image?
-        # apply preprocess model
-        control = self.preprocess_model(control)            #Passes LQ image through tau model (SwinIR)
+        ###TODO ADDED
+       #1) coarse via SwinIR
+        with torch.no_grad():
+          control = self.preprocess_model(control)
+
+        # 2) NEW: fuse with edges (keeps [B,3,H,W])
+        #if getattr(self, "use_edge_fusion", False):
+        if self.use_edge_fusion:
+          control = self._fuse_control_with_edges(control) #defined in line 600
+        ###
+
+
         # apply condition encoder
         c_latent = self.apply_condition_encoder(control)    #Processed Coarse Image
 
@@ -590,8 +725,13 @@ class Reflow_ControlLDM(LatentDiffusion):
         lr = self.learning_rate
         params =   list(self.control_model.parameters())
 
-        opt = torch.optim.AdamW(itertools.chain(self.unet_lora_params,params), lr=lr)
-        #opt = torch.optim.AdamW(params, lr=lr)
+        ###TODO CHANGED
+        # opt = torch.optim.AdamW(itertools.chain(self.unet_lora_params,params), lr=lr)
+        opt =torch.optim.AdamW(self.edge_fusion.parameters(), lr=self.learning_rate, weight_decay=0.0)
+        ###
+
+        # opt = torch.optim.AdamW(params, lr=lr)
+        
         return opt
 
     @torch.no_grad()
@@ -634,14 +774,6 @@ class Reflow_ControlLDM(LatentDiffusion):
     def training_step(self, batch, batch_idx):
        
         z0,cond = self.get_input(batch,self.first_stage_key)
-
-        ###TODO Added
-        edge_input = cond["c_concat"]
-        edge_out = self.edge_model(edge_input)
-        cond["c_concat"] = torch.cat((cond["c_concat"], edge_out))
-
-        ###
-
         zT = torch.randn_like(z0,device=self.device)
         B = z0.shape[0]
         

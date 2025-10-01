@@ -4,7 +4,7 @@ data:
     # Path to training set configuration file.
     train_config: ./configs/dataset/face_train.yaml
     # Path to validation set configuration file.
-    val_config: 
+    val_config: ./configs/dataset/face_val.yaml
 
 model:
   # You can set learning rate in the following configuration file.
@@ -17,19 +17,32 @@ lightning:
   seed: 231
   
   trainer:
+    #GPU info
     accelerator: ddp
-    precision: 32
+    precision: 16 #32
     # Indices of GPUs used for training.
-    gpus: [1,2,3,4,5,6,7]
+    gpus: [0]
+
+    # accelerator: gpu
+    # precision: 16-mixed #32
+    # devices: 1
+    # strategy: ddp
+
     # Path to save logs and checkpoints.
     default_root_dir: ./work_dirs/exp1
+
     # Max number of training steps (batches).
-    max_steps: 250001
+    # max_steps: 250001                                 #TODO CHECK
+    max_steps: 200
+
     # Validation frequency in terms of training steps.
-    val_check_interval: 500
-    log_every_n_steps: 50
+    # val_check_interval: 500
+    # log_every_n_steps: 50
+    limit_val_batches: 0.0
+
     # Accumulate gradients from multiple batches so as to increase batch size.
     accumulate_grad_batches: 1
+    gradient_clip_val: 1.0
   
   callbacks:
     - target: model.callbacks.ImageLogger

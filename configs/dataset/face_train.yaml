@@ -2,8 +2,8 @@ dataset:
   target: dataset.codeformer.CodeformerDataset
   params:
     # Path to the file list.
-    file_list: ./dataset/list/celeba/train.list   #TODO CHANGED
-    out_size: 512
+    file_list: ./dataset/list/celeba/train_split.list   #TODO CHANGED
+    out_size: 256 #512
     crop_type: none
     use_hflip: true
     
@@ -21,9 +21,9 @@ dataset:
     # gray_prob: 0.01
 
 data_loader:
-  batch_size: 4
+  batch_size: 1
   shuffle: true
-  num_workers: 16
+  num_workers: 4
   drop_last: true
 
 batch_transform:

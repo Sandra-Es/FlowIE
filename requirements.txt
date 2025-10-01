@@ -4,26 +4,36 @@
 # torch==1.13.1                   #CPU
 # torchvision==0.14.1             #CPU
 
---extra-index-url https://download.pytorch.org/whl/cu117
-torch==1.13.1+cu117
-torchvision==0.14.1+cu117
+# --extra-index-url https://download.pytorch.org/whl/cu117
+# torch==1.13.1+cu117
+# torchvision==0.14.1+cu117
 
-xformers==0.0.16
+--extra-index-url https://download.pytorch.org/whl/cu118
+torch==2.1.0+cu118
+torchvision==0.16.0+cu118
+
+# xformers==0.0.16
+xformers
+
 pytorch_lightning==1.4.2
 einops
 open-clip-torch==2.24.0
 omegaconf
 torchmetrics==0.6.0
-triton==2.0.0
-#lora-diffusion==0.1.7          #CPU
-# lora-diffusion==0.1.7
-git+https://github.com/cloneofsimo/lora.git
 
-opencv-python-headless
+# triton==2.0.0
+triton
+
+#lora-diffusion==0.1.7
+git+https://github.com/cloneofsimo/lora.git@v0.1.7
+
+opencv-python-headless==4.10.0.84
 scipy
 matplotlib
 lpips
 gradio
 chardet
-transformers
+transformers==4.39.3
+diffusers==0.24.0
+huggingface_hub==0.20.3
 facexlib
