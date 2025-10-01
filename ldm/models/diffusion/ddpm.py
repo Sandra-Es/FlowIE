@@ -17,7 +17,18 @@ from functools import partial
 import itertools
 from tqdm import tqdm
 from torchvision.utils import make_grid
-from pytorch_lightning.utilities.distributed import rank_zero_only
+
+###TODO CHANGED
+#from pytorch_lightning.utilities.distributed import rank_zero_only 
+try:
+    # old path (PL <= 1.5)
+    from pytorch_lightning.utilities.distributed import rank_zero_only
+except Exception:
+    # new path (PL >= 1.6 / 2.x)
+    from pytorch_lightning.utilities.rank_zero import rank_zero_only
+###
+
+
 from omegaconf import ListConfig
 
 from ldm.util import log_txt_as_img, exists, default, ismap, isimage, mean_flat, count_params, instantiate_from_config

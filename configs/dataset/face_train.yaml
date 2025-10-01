@@ -2,7 +2,7 @@ dataset:
   target: dataset.codeformer.CodeformerDataset
   params:
     # Path to the file list.
-    file_list: /home/user001/zwl/data/FFHQ512/train.list
+    file_list: ./dataset/list/celeba/train.list   #TODO CHANGED
     out_size: 512
     crop_type: none
     use_hflip: true

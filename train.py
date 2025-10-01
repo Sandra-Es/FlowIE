@@ -32,7 +32,22 @@ def main() -> None:
         
         #load_state_dict(model.preprocess_model, torch.load('/home/user001/zwl/data/flowir_work_dirs/swin_derain0/lightning_logs/version_6/checkpoints/step=69999.ckpt', map_location="cpu"), strict=True)
 
-    
+    #TODO ADDED : Freezing and training modules
+    #Freeze all params
+    for p in model.parameters():
+        p.requires_grad = False
+
+    # unfreeze specific submodules by name
+    to_unfreeze = ["layer4", "fc"]   # example for a ResNet
+    for name, module in model.named_modules():
+        if any(name.startswith(t) for t in to_unfreeze):
+            for p in module.parameters():
+                p.requires_grad = True
+
+    num_params = sum([p.numel() for p in model.parameters()])
+    num_train_params = sum([p.numel() if p.requires_grad else 0 for p in model.parameters()])
+    print(f"\n\nTrainable Params: {num_train_params} / {num_params}\n\n")
+    ###
 
     callbacks = []
     for callback_config in config.lightning.callbacks:

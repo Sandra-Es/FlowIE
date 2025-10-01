@@ -11,7 +11,8 @@ import einops
 import torch
 import torch as th
 import torch.nn as nn
-from lpips_pytorch import LPIPS, lpips
+# from lpips_pytorch import LPIPS, lpips        #TODO updated
+from lpips import LPIPS, lpips
 from torchvision.utils import save_image
 from ldm.modules.diffusionmodules.util import (
     conv_nd,
@@ -280,11 +281,11 @@ class ControlNet(nn.Module):
         outs = []
 
         h = x.type(self.dtype)
-        for module, zero_conv in zip(self.input_blocks, self.zero_convs):
+        for module, zero_conv in zip(self.input_blocks, self.zero_convs):       #TODO UNFREEZE THIS
             h = module(h, emb, context)
             outs.append(zero_conv(h, emb, context))
 
-        h = self.middle_block(h, emb, context)
+        h = self.middle_block(h, emb, context)                                  #TODO UNFREEZE THIS
         outs.append(self.middle_block_out(h, emb, context))
 
         return outs
