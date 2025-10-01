@@ -1,0 +1,22 @@
+--extra-index-url https://download.pytorch.org/whl/cu118
+
+torch==2.1.0+cu118
+torchvision==0.16.0+cu118
+
+xformers==0.0.22.post7
+pytorch_lightning==2.1.2
+torchmetrics==1.2.0
+einops
+open-clip-torch==2.24.0
+omegaconf
+transformers==4.39.3
+diffusers==0.25.0
+huggingface_hub==0.20.3
+opencv-python-headless
+scipy
+matplotlib
+lpips
+gradio
+chardet
+facexlib
+git+https://github.com/cloneofsimo/lora.git

@@ -1,8 +1,13 @@
 #--extra-index-url https://download.pytorch.org/whl/cu116
 # torch==1.13.1+cu116
 # torchvision==0.14.1+cu116
-torch==1.13.1
-torchvision==0.14.1
+# torch==1.13.1                   #CPU
+# torchvision==0.14.1             #CPU
+
+--extra-index-url https://download.pytorch.org/whl/cu117
+torch==1.13.1+cu117
+torchvision==0.14.1+cu117
+
 xformers==0.0.16
 pytorch_lightning==1.4.2
 einops
@@ -10,7 +15,10 @@ open-clip-torch==2.24.0
 omegaconf
 torchmetrics==0.6.0
 triton==2.0.0
-#lora-diffusion==0.1.7
+#lora-diffusion==0.1.7          #CPU
+# lora-diffusion==0.1.7
+git+https://github.com/cloneofsimo/lora.git
+
 opencv-python-headless
 scipy
 matplotlib
